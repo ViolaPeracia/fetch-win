@@ -428,6 +428,126 @@ static void test_distro_color_mapping(void) {
 }
 
 // -------------------------------------------------------------
+// Test Suite 8: Separators and Custom Static Fields
+// -------------------------------------------------------------
+static void test_separators_and_custom_fields(void) {
+    TEST_SECTION("Unit Tests: Separators & Custom Static Fields");
+
+    fetch_config_t cfg;
+    config_init_defaults(&cfg);
+
+    // 1. Initial state
+    TEST_ASSERT(cfg.custom_count == 0, "Initial custom_count is 0");
+
+    // Reset fields
+    for (int i = 0; i < F_COUNT; i++) cfg.field_enabled[i] = 0;
+    cfg.field_count = 0;
+
+    // 2. Separator parsing
+    int rc = config_parse_line(&cfg, "---");
+    TEST_ASSERT(rc == 1, "Separator line '---' returns 1");
+    TEST_ASSERT(cfg.field_count == 1, "Field count increments for separator");
+    TEST_ASSERT(cfg.field_order[0] == F_SEPARATOR, "field_order[0] is F_SEPARATOR");
+
+    // 3. Custom field parsing
+    rc = config_parse_line(&cfg, "custom_Pronouns=he/him");
+    TEST_ASSERT(rc == 1, "Valid custom field 'custom_Pronouns=he/him' returns 1");
+    TEST_ASSERT(cfg.field_count == 2, "Field count is 2");
+    TEST_ASSERT(cfg.custom_count == 1, "Custom count is 1");
+    TEST_ASSERT(cfg.field_order[1] == F_CUSTOM_BASE, "field_order[1] is F_CUSTOM_BASE");
+    TEST_ASSERT(strcmp(cfg.custom_label[0], "Pronouns") == 0, "custom_label[0] is 'Pronouns'");
+    TEST_ASSERT(strcmp(cfg.custom_value[0], "he/him") == 0, "custom_value[0] is 'he/him'");
+
+    // 4. Mixed ordering
+    config_parse_line(&cfg, "os");
+    config_parse_line(&cfg, "---");
+    config_parse_line(&cfg, "custom_Website=example.com");
+    config_parse_line(&cfg, "cpu");
+
+    TEST_ASSERT(cfg.field_count == 6, "Mixed config has 6 entries");
+    TEST_ASSERT(cfg.field_order[0] == F_SEPARATOR, "Entry 0 is separator");
+    TEST_ASSERT(cfg.field_order[1] == F_CUSTOM_BASE + 0, "Entry 1 is custom 0");
+    TEST_ASSERT(cfg.field_order[2] == F_OS, "Entry 2 is OS");
+    TEST_ASSERT(cfg.field_order[3] == F_SEPARATOR, "Entry 3 is separator");
+    TEST_ASSERT(cfg.field_order[4] == F_CUSTOM_BASE + 1, "Entry 4 is custom 1");
+    TEST_ASSERT(cfg.field_order[5] == F_CPU, "Entry 5 is CPU");
+    TEST_ASSERT(strcmp(cfg.custom_label[1], "Website") == 0, "custom_label[1] is 'Website'");
+    TEST_ASSERT(strcmp(cfg.custom_value[1], "example.com") == 0, "custom_value[1] is 'example.com'");
+
+    // 5. Malformed custom entries
+    TEST_ASSERT(config_parse_line(&cfg, "custom_") == 0, "custom_ without equals is rejected");
+    TEST_ASSERT(config_parse_line(&cfg, "custom_NoEquals") == 0, "custom_NoEquals is rejected");
+    TEST_ASSERT(config_parse_line(&cfg, "custom_=val") == 0, "custom_=val (empty label) is rejected");
+
+    // 6. Empty value
+    rc = config_parse_line(&cfg, "custom_Empty=");
+    TEST_ASSERT(rc == 1, "custom_Empty= is accepted");
+    TEST_ASSERT(strcmp(cfg.custom_label[cfg.custom_count - 1], "Empty") == 0, "Empty label stored");
+    TEST_ASSERT(strcmp(cfg.custom_value[cfg.custom_count - 1], "") == 0, "Empty value stored");
+
+    // 7. Label truncation at 63 characters
+    char long_label_line[300];
+    char long_name[120];
+    memset(long_name, 'A', 100);
+    long_name[100] = '\0';
+    snprintf(long_label_line, sizeof(long_label_line), "custom_%s=testval", long_name);
+    rc = config_parse_line(&cfg, long_label_line);
+    TEST_ASSERT(rc == 1, "Long label is accepted with truncation");
+    int ci = cfg.custom_count - 1;
+    TEST_ASSERT(strlen(cfg.custom_label[ci]) == 63, "Label truncated to 63 bytes");
+    TEST_ASSERT(cfg.custom_label[ci][63] == '\0', "Label is NUL-terminated");
+    TEST_ASSERT(strcmp(cfg.custom_value[ci], "testval") == 0, "Value intact after label truncation");
+
+    // 8. Value truncation at 255 characters
+    char long_val_line[500];
+    char long_val[350];
+    memset(long_val, 'B', 300);
+    long_val[300] = '\0';
+    snprintf(long_val_line, sizeof(long_val_line), "custom_TruncVal=%s", long_val);
+    rc = config_parse_line(&cfg, long_val_line);
+    TEST_ASSERT(rc == 1, "Long value is accepted with truncation");
+    ci = cfg.custom_count - 1;
+    TEST_ASSERT(strcmp(cfg.custom_label[ci], "TruncVal") == 0, "Label intact");
+    TEST_ASSERT(strlen(cfg.custom_value[ci]) == 255, "Value truncated to 255 bytes");
+    TEST_ASSERT(cfg.custom_value[ci][255] == '\0', "Value is NUL-terminated");
+
+    // 9. Fill up to MAX_CUSTOM (16 fields)
+    while (cfg.custom_count < MAX_CUSTOM) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "custom_Field%d=V%d", cfg.custom_count, cfg.custom_count);
+        TEST_ASSERT(config_parse_line(&cfg, buf) == 1, "Adds custom field up to MAX_CUSTOM");
+    }
+    TEST_ASSERT(cfg.custom_count == MAX_CUSTOM, "Custom count reached MAX_CUSTOM (16)");
+
+    // 10. 17th custom field overflow rejected
+    int fields_before = cfg.field_count;
+    rc = config_parse_line(&cfg, "custom_17th=fail");
+    TEST_ASSERT(rc == 0, "17th custom field is rejected");
+    TEST_ASSERT(cfg.custom_count == MAX_CUSTOM, "Custom count remains 16");
+    TEST_ASSERT(cfg.field_count == fields_before, "Field count unchanged after rejection");
+
+    // 11. Globals synchronization: struct -> globals
+    config_sync_to_globals(&cfg);
+    TEST_ASSERT(field_count == cfg.field_count, "field_count synced to global");
+    TEST_ASSERT(custom_count == cfg.custom_count, "custom_count synced to global");
+    TEST_ASSERT(field_order[0] == cfg.field_order[0], "field_order[0] synced to global");
+    TEST_ASSERT(field_order[1] == cfg.field_order[1], "field_order[1] synced to global");
+    TEST_ASSERT(strcmp(custom_label[0], "Pronouns") == 0, "custom_label[0] synced to global");
+    TEST_ASSERT(strcmp(custom_value[0], "he/him") == 0, "custom_value[0] synced to global");
+
+    // 12. Globals synchronization: globals -> struct
+    fetch_config_t cfg2;
+    memset(&cfg2, 0, sizeof(cfg2));
+    config_sync_from_globals(&cfg2);
+    TEST_ASSERT(cfg2.field_count == field_count, "cfg2.field_count synced from global");
+    TEST_ASSERT(cfg2.custom_count == custom_count, "cfg2.custom_count synced from global");
+    TEST_ASSERT(cfg2.field_order[0] == field_order[0], "cfg2.field_order[0] synced from global");
+    TEST_ASSERT(cfg2.field_order[1] == field_order[1], "cfg2.field_order[1] synced from global");
+    TEST_ASSERT(strcmp(cfg2.custom_label[0], "Pronouns") == 0, "cfg2.custom_label[0] synced from global");
+    TEST_ASSERT(strcmp(cfg2.custom_value[0], "he/him") == 0, "cfg2.custom_value[0] synced from global");
+}
+
+// -------------------------------------------------------------
 // Main Test Runner
 // -------------------------------------------------------------
 int main(int argc, char **argv) {
@@ -440,6 +560,7 @@ int main(int argc, char **argv) {
     test_config_defaults_init();
     test_config_line_parsing();
     test_config_file_and_globals_sync();
+    test_separators_and_custom_fields();
     test_logo_default_loading();
     test_custom_logo_file();
     test_logo_ansi_extraction();

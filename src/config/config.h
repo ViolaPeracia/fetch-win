@@ -33,12 +33,20 @@ enum {
   F_COUNT
 };
 
+#define F_SEPARATOR F_COUNT
+#define F_CUSTOM_BASE (F_COUNT + 1)
+#define MAX_CUSTOM 16
+#define MAX_FIELDS (F_COUNT + MAX_CUSTOM + 16)
+
 #define MAX_EXTRA_DISKS 8
 
 typedef struct {
   int field_enabled[F_COUNT];
-  int field_order[F_COUNT];
+  int field_order[MAX_FIELDS];
   int field_count;
+  char custom_label[MAX_CUSTOM][64];
+  char custom_value[MAX_CUSTOM][256];
+  int custom_count;
   char label_color[16];
   int config_height;
   float size_scale;
@@ -78,8 +86,11 @@ void config_sync_from_globals(fetch_config_t *cfg);
 
 // Compatibility globals for existing fetch.c and Phase 0 baseline tests
 extern int field_enabled[F_COUNT];
-extern int field_order[F_COUNT];
+extern int field_order[MAX_FIELDS];
 extern int field_count;
+extern char custom_label[MAX_CUSTOM][64];
+extern char custom_value[MAX_CUSTOM][256];
+extern int custom_count;
 extern char label_color[16];
 extern int config_height;
 extern float size_scale;

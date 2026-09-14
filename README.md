@@ -307,6 +307,13 @@ ip
 battery
 colors
 
+# separators (blank line between groups)
+# ---
+
+# custom static fields
+# custom_Pronouns=he/him
+# custom_Website=example.com
+
 # Settings
 speed=1.0
 size=1.0

@@ -33,6 +33,32 @@ colors
 
 All fields are optional. You can reorder them however you want.
 
+## Separators
+
+Add `---` on its own line to insert a blank line between groups of fields:
+
+```
+os
+host
+kernel
+---
+cpu
+gpu
+memory
+```
+
+## Custom fields
+
+Add static text fields with `custom_Label=value`:
+
+```
+custom_Pronouns=he/him
+custom_Website=example.com
+custom_Editor=neovim
+```
+
+These render like built-in fields (`Pronouns: he/him`) with the configured label color. You can place them anywhere in the field list and mix them with separators. No command execution — values are static strings only.
+
 ## Appearance
 
 ```

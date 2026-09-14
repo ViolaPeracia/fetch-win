@@ -12,8 +12,11 @@ fetch_config_t g_config;
 
 // Backward-compatibility global variables
 int field_enabled[F_COUNT];
-int field_order[F_COUNT];
+int field_order[MAX_FIELDS];
 int field_count = 0;
+char custom_label[MAX_CUSTOM][64];
+char custom_value[MAX_CUSTOM][256];
+int custom_count = 0;
 char label_color[16] = "35";
 int config_height = 0;
 float size_scale = 1.0f;
@@ -86,9 +89,18 @@ void config_sync_to_globals(const fetch_config_t *cfg) {
   if (!cfg) return;
   for (int i = 0; i < F_COUNT; i++) {
     field_enabled[i] = cfg->field_enabled[i];
+  }
+  for (int i = 0; i < cfg->field_count && i < MAX_FIELDS; i++) {
     field_order[i] = cfg->field_order[i];
   }
   field_count = cfg->field_count;
+  custom_count = cfg->custom_count;
+  for (int i = 0; i < cfg->custom_count && i < MAX_CUSTOM; i++) {
+    strncpy(custom_label[i], cfg->custom_label[i], sizeof(custom_label[0]) - 1);
+    custom_label[i][sizeof(custom_label[0]) - 1] = '\0';
+    strncpy(custom_value[i], cfg->custom_value[i], sizeof(custom_value[0]) - 1);
+    custom_value[i][sizeof(custom_value[0]) - 1] = '\0';
+  }
   strncpy(label_color, cfg->label_color, sizeof(label_color) - 1);
   label_color[sizeof(label_color) - 1] = '\0';
   config_height = cfg->config_height;
@@ -125,9 +137,18 @@ void config_sync_from_globals(fetch_config_t *cfg) {
   if (!cfg) return;
   for (int i = 0; i < F_COUNT; i++) {
     cfg->field_enabled[i] = field_enabled[i];
+  }
+  for (int i = 0; i < field_count && i < MAX_FIELDS; i++) {
     cfg->field_order[i] = field_order[i];
   }
   cfg->field_count = field_count;
+  cfg->custom_count = custom_count;
+  for (int i = 0; i < custom_count && i < MAX_CUSTOM; i++) {
+    strncpy(cfg->custom_label[i], custom_label[i], sizeof(cfg->custom_label[0]) - 1);
+    cfg->custom_label[i][sizeof(cfg->custom_label[0]) - 1] = '\0';
+    strncpy(cfg->custom_value[i], custom_value[i], sizeof(cfg->custom_value[0]) - 1);
+    cfg->custom_value[i][sizeof(cfg->custom_value[0]) - 1] = '\0';
+  }
   strncpy(cfg->label_color, label_color, sizeof(cfg->label_color) - 1);
   cfg->label_color[sizeof(cfg->label_color) - 1] = '\0';
   cfg->config_height = config_height;
@@ -201,7 +222,7 @@ void config_init_defaults(fetch_config_t *cfg) {
 int config_parse_line(fetch_config_t *cfg, const char *raw_line) {
   if (!cfg || !raw_line) return 0;
 
-  char buf[256];
+  char buf[512];
   strncpy(buf, raw_line, sizeof(buf) - 1);
   buf[sizeof(buf) - 1] = '\0';
 
@@ -395,7 +416,7 @@ int config_parse_line(fetch_config_t *cfg, const char *raw_line) {
       cfg->extra_disk_count++;
     }
     // also enable disk field if not already
-    if (!cfg->field_enabled[F_DISK] && cfg->field_count < F_COUNT) {
+    if (!cfg->field_enabled[F_DISK] && cfg->field_count < MAX_FIELDS) {
       cfg->field_enabled[F_DISK] = 1;
       cfg->field_order[cfg->field_count++] = F_DISK;
     }
@@ -428,11 +449,38 @@ int config_parse_line(fetch_config_t *cfg, const char *raw_line) {
     return 1;
   }
 
+  // Separator: a line of dashes
+  if (strcmp(line, "---") == 0) {
+    if (cfg->field_count < MAX_FIELDS)
+      cfg->field_order[cfg->field_count++] = F_SEPARATOR;
+    return 1;
+  }
+
+  // Custom static field: custom_Label=value
+  if (strncmp(line, "custom_", 7) == 0) {
+    char *eq = strchr(line + 7, '=');
+    if (eq && eq > line + 7 && cfg->custom_count < MAX_CUSTOM &&
+        cfg->field_count < MAX_FIELDS) {
+      int llen = (int)(eq - (line + 7));
+      if (llen > (int)sizeof(cfg->custom_label[0]) - 1)
+        llen = (int)sizeof(cfg->custom_label[0]) - 1;
+      memcpy(cfg->custom_label[cfg->custom_count], line + 7, llen);
+      cfg->custom_label[cfg->custom_count][llen] = '\0';
+      strncpy(cfg->custom_value[cfg->custom_count], eq + 1,
+              sizeof(cfg->custom_value[0]) - 1);
+      cfg->custom_value[cfg->custom_count][sizeof(cfg->custom_value[0]) - 1] = '\0';
+      cfg->field_order[cfg->field_count++] = F_CUSTOM_BASE + cfg->custom_count;
+      cfg->custom_count++;
+      return 1;
+    }
+    return 0;
+  }
+
   // Match field name
   for (int i = 0; field_map[i].name; i++) {
     if (strcasecmp(line, field_map[i].name) == 0) {
       int id = field_map[i].id;
-      if (!cfg->field_enabled[id] && cfg->field_count < F_COUNT) {
+      if (!cfg->field_enabled[id] && cfg->field_count < MAX_FIELDS) {
         cfg->field_enabled[id] = 1;
         cfg->field_order[cfg->field_count++] = id;
       }
@@ -455,8 +503,9 @@ int config_load_file(fetch_config_t *cfg, const char *path) {
   for (int i = 0; i < F_COUNT; i++)
     cfg->field_enabled[i] = 0;
   cfg->field_count = 0;
+  cfg->custom_count = 0;
 
-  char buf[256];
+  char buf[512];
   while (fgets(buf, sizeof(buf), fp)) {
     config_parse_line(cfg, buf);
   }

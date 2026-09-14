@@ -2747,6 +2747,9 @@ int main(int argc, char **argv) {
           "    os, host, kernel, uptime, packages, shell, display, wm,\n"
           "    displaymanager, theme, icons, font, cursor, terminal, cpu,\n"
           "    gpu, memory, swap, disk, ip, battery, locale, colors\n\n"
+          "  Separators and custom fields:\n"
+          "    ---                      Blank line separator\n"
+          "    custom_Label=value       Static field (e.g. custom_Pronouns=he/him)\n\n"
           "  Extra disks:\n"
           "    disk=/home               Show additional mount point\n"
           "    disk=/data               (repeat for multiple mounts)\n\n"
@@ -2977,13 +2980,18 @@ int main(int argc, char **argv) {
     gather_title();
     for (int i = 0; i < field_count; i++) {
       int id = field_order[i];
-      if (id == F_COLORS) {
+      if (id == F_SEPARATOR) {
+        add_line("");
+      } else if (id >= F_CUSTOM_BASE && id < F_CUSTOM_BASE + MAX_CUSTOM) {
+        int ci = id - F_CUSTOM_BASE;
+        add_info(custom_label[ci], "%s", custom_value[ci]);
+      } else if (id == F_COLORS) {
         add_line("");
         add_line("\033[40m   \033[41m   \033[42m   \033[43m   "
                  "\033[44m   \033[45m   \033[46m   \033[47m   \033[0m");
         add_line("\033[100m   \033[101m   \033[102m   \033[103m   "
                  "\033[104m   \033[105m   \033[106m   \033[107m   \033[0m");
-      } else if (fns[id]) {
+      } else if (id < F_COUNT && fns[id]) {
         current_field = id;
         fns[id]();
       }
@@ -2998,8 +3006,22 @@ int main(int argc, char **argv) {
 
   float A = 0.0f;
   float B = 0.0f;
-  float K1 = 37.0f * logo_height / 36.0f;
+  float K1 = 37.0f * logo_height / 36.0f * size_scale;
   const float K2 = 5.5f;
+
+  // Compute the face-on (A=0, B=0) projection extent from the point
+  // cloud. This is deterministic and sets a fixed frame height.
+  float face_up = 0, face_dn = 0;
+  for (int i = 0; i < POINT_COUNT; i++) {
+    float zc = PZ[i] + K2;
+    if (zc < 0.1f) continue;
+    float ys = K1 * PY[i] / zc;
+    if (ys > face_up) face_up = ys;
+    if (-ys > face_dn) face_dn = -ys;
+  }
+  // Place y_center so the logo top lands at row 1 (row 0 is padding)
+  float fixed_y_center = face_up + 1.0f;
+
   float hlx, hly, hlz;
   render_compute_half_vector(light_x, light_y, light_z, &hlx, &hly, &hlz);
 
@@ -3007,6 +3029,15 @@ int main(int argc, char **argv) {
   platform_terminal_init(&caps);
 
   int fetch_start = show_info ? 1 : 0;
+  // Tighten render_height to fit the face-on logo + info,
+  // but not when the user explicitly set --height
+  if (config_height == 0) {
+    int logo_bottom = (int)(fixed_y_center + face_dn) + 2;
+    int info_bottom = show_info ? fetch_start + fetch_line_count + 1 : 0;
+    int needed = logo_bottom > info_bottom ? logo_bottom : info_bottom;
+    if (needed < render_height)
+      render_height = needed;
+  }
 
   int mouse_dragging = 0;
   float drag_vx = 0.0f, drag_vy = 0.0f;
@@ -3044,7 +3075,7 @@ int main(int argc, char **argv) {
       apply_layout(show_info);
       if (render_height != old_h || anim_width != old_w ||
           layout_stacked != old_stacked || info_clip_cols != old_clip) {
-        K1 = 37.0f * logo_height / 36.0f;
+        K1 = 37.0f * logo_height / 36.0f * size_scale;
         platform_write_output("\033[2J", 4);
       }
     }
@@ -3081,9 +3112,8 @@ int main(int argc, char **argv) {
       }
     }
     const float lx = light_x, ly = light_y, lz = light_z;
-    const float y_center = (!layout_stacked && fetch_line_count > 0 &&
-                            fetch_line_count + 2 <= render_height)
-                              ? fetch_start + fetch_line_count * 0.5f
+    const float y_center = (!layout_stacked && show_info)
+                              ? fixed_y_center
                               : render_height * 0.5f;
     const int smax = shading_count - 1;
     const int aw = anim_width;
