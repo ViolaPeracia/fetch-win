@@ -61,6 +61,7 @@ static const struct {
                  {"disk", F_DISK},
                  {"ip", F_IP},
                  {"battery", F_BATTERY},
+                 {"powerprofile", F_POWERPROFILE},
                  {"locale", F_LOCALE},
                  {"colors", F_COLORS},
                  {NULL, 0}};

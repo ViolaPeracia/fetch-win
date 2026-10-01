@@ -432,6 +432,7 @@ void platform_gather_battery(char *out_label, size_t labelsz, char *out_val, siz
   if (out_val && valsz > 0) out_val[0] = '\0';
 }
 void platform_gather_locale(char *out, size_t outsz) { if (out && outsz > 0) out[0] = '\0'; }
+void platform_gather_powerprofile(char *out, size_t outsz) { if (out && outsz > 0) out[0] = '\0'; }
 void platform_invalidate_info_cache(void) {}
 
 #ifdef FETCH_TESTING

@@ -28,6 +28,7 @@ enum {
   F_DISK,
   F_IP,
   F_BATTERY,
+  F_POWERPROFILE,
   F_LOCALE,
   F_COLORS,
   F_COUNT

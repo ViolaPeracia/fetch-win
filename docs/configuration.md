@@ -33,6 +33,15 @@ colors
 
 All fields are optional. You can reorder them however you want.
 
+`powerprofile` is also available but is not shown by default. It reports the
+active power scheme (`Balanced`, `High performance`, `Power saver`, or an OEM
+scheme name such as `Turbo`/`Silent`). Add it to your config to enable it:
+
+```
+os
+powerprofile
+```
+
 ## Separators
 
 Add `---` on its own line to insert a blank line between groups of fields:

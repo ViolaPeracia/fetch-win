@@ -7,6 +7,7 @@
 #define COBJMACROS
 #include <initguid.h>
 #include <dxgi.h>
+#include <wchar.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -963,6 +964,9 @@ typedef struct {
 
   int packages_valid;
   char packages[128];
+
+  int powerprofile_valid;
+  char powerprofile[64];
 } win_system_cache_t;
 
 static win_system_cache_t g_sys_cache = {0};
@@ -2318,6 +2322,51 @@ void platform_gather_battery(char *out_label, size_t labelsz, char *out_val, siz
       snprintf(out_val, valsz, "\033[%sm%d%%\033[0m [%s]", color, capacity, status);
     }
   }
+}
+
+// Windows power schemes live in the registry: PowerSchemes\ActivePowerScheme
+// holds the active scheme's GUID, and each GUID subkey carries a FriendlyName.
+// Reading the registry (rather than a hardcoded GUID table) means OEM schemes
+// such as "Turbo" or "Silent" resolve correctly instead of showing "Custom".
+// It also needs no subprocess, keeping the 20 FPS render loop free of process
+// spawns per the rule in docs/roadmap.md.
+#define FETCH_POWER_SCHEMES_KEY L"SYSTEM\\CurrentControlSet\\Control\\Power\\User\\PowerSchemes"
+
+void platform_gather_powerprofile(char *out, size_t outsz) {
+  if (!out || outsz == 0) return;
+  out[0] = '\0';
+
+  if (g_sys_cache.powerprofile_valid) {
+    snprintf(out, outsz, "%s", g_sys_cache.powerprofile);
+    return;
+  }
+
+  WCHAR guid[64] = {0};
+  if (reg_get_sz(HKEY_LOCAL_MACHINE, FETCH_POWER_SCHEMES_KEY, L"ActivePowerScheme",
+                 guid, 64)) {
+    WCHAR subkey[192] = {0};
+    _snwprintf(subkey, sizeof(subkey) / sizeof(subkey[0]) - 1, L"%s\\%s",
+               FETCH_POWER_SCHEMES_KEY, guid);
+
+    WCHAR friendly[256] = {0};
+    if (reg_get_sz(HKEY_LOCAL_MACHINE, subkey, L"FriendlyName", friendly, 256)) {
+      // Built-in schemes store a resource reference such as
+      // "@C:\Windows\...\powrprof.dll,-15,Balanced"; the display text is the
+      // part after the last comma. OEM schemes store the name directly.
+      WCHAR *display = friendly;
+      if (friendly[0] == L'@') {
+        WCHAR *last = wcsrchr(friendly, L',');
+        display = last ? (last + 1) : friendly;
+      }
+      if (display[0]) {
+        utf16_to_utf8(display, g_sys_cache.powerprofile,
+                      sizeof(g_sys_cache.powerprofile));
+      }
+    }
+  }
+
+  g_sys_cache.powerprofile_valid = 1;
+  snprintf(out, outsz, "%s", g_sys_cache.powerprofile);
 }
 
 #ifdef FETCH_TESTING

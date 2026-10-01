@@ -132,6 +132,14 @@ void platform_gather_battery(char *out_label, size_t labelsz, char *out_val, siz
 void platform_gather_locale(char *out, size_t outsz);
 
 /**
+ * Gather the active power/energy profile name.
+ * On Windows this maps the active power scheme GUID to a friendly name
+ * (e.g. "Balanced", "High performance", "Power saver"). Writes an empty
+ * string when no profile can be determined.
+ */
+void platform_gather_powerprofile(char *out, size_t outsz);
+
+/**
  * Invalidate cached static system information, allowing refresh on next query.
  */
 void platform_invalidate_info_cache(void);
