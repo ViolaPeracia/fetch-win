@@ -609,6 +609,7 @@ void logo_set_distro_colors(const char *distro, const char **out_outer, const ch
 }
 
 // Parse a value from os-release, stripping quotes and newlines
+#if !defined(_WIN32)
 static int parse_os_release_val(const char *buf, int prefix_len, char *out,
                                 int maxlen) {
   int len = strlen(buf);
@@ -631,7 +632,11 @@ static int parse_os_release_val(const char *buf, int prefix_len, char *out,
   }
   return 0;
 }
+#endif
 
+// Distro detection shells out to fastfetch and /etc/os-release, neither of
+// which is meaningful on Windows (the logo is always the built-in Win mark).
+#if !defined(_WIN32)
 static int detect_distro_fastfetch(char *out, int maxlen) {
   FILE *fp = popen("fastfetch -c none --json 2>/dev/null", "r");
   if (!fp)
@@ -696,6 +701,7 @@ static int detect_distro_os_release(char *out, int maxlen) {
   fclose(fp);
   return found_id;
 }
+#endif
 
 int logo_detect_distro(char *out, size_t maxlen) {
   if (!out || maxlen == 0) return 0;

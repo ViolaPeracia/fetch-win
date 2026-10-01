@@ -314,7 +314,8 @@ static void gather_os(void) {
 
 // Reads the first line of a small pseudo-file (e.g. under /sys or /proc)
 // into out, trimming the trailing newline. Returns 1 on success, 0 if the
-// file couldn't be opened or was empty.
+// file couldn't be opened or was empty. Only the POSIX host paths use this.
+#if !defined(_WIN32)
 static int try_read_first_line(const char *path, char *out, int outlen) {
   out[0] = '\0';
   FILE *fp = fopen(path, "r");
@@ -328,6 +329,7 @@ static int try_read_first_line(const char *path, char *out, int outlen) {
   fclose(fp);
   return out[0] != '\0';
 }
+#endif
 
 static void gather_host(void) {
 #ifdef _WIN32
@@ -709,7 +711,9 @@ static void gather_shell(void) {
     add_info("Shell", "%s", name);
 }
 
-#ifndef __APPLE__
+// DRM/EDID display probing is Linux-only: it opens /dev/dri and reads
+// /sys/class/drm, neither of which exists on Windows or macOS.
+#if !defined(_WIN32) && !defined(__APPLE__)
 struct drm_modeinfo_min {
   uint32_t clock;
   uint16_t hdisplay, hsync_start, hsync_end, htotal, hskew;
@@ -1361,7 +1365,8 @@ static void gather_cpu(void) {
 // Example input: "01:00.0 VGA compatible controller: NVIDIA Corporation
 // AD106M [GeForce RTX 4070 Max-Q / Mobile] (rev a1)"
 // We prefer the bracket content; otherwise the chunk after "Corporation ".
-#ifndef __APPLE__
+// lspci is a Linux-only tool; Windows uses DXGI and macOS uses system_profiler.
+#if !defined(_WIN32) && !defined(__APPLE__)
 static int gpu_lookup_lspci(const char *pci_id, char *out, int outlen) {
   if (!pci_id || !pci_id[0])
     return 0;
@@ -2102,7 +2107,10 @@ static void gather_terminal(void) {
   }
 }
 
-#ifndef __APPLE__
+// Interface classification and default-route detection read /sys/class/net and
+// /proc/net/route, so this is Linux-only. Windows resolves the route via
+// GetBestInterface and adapter types via IP Helper.
+#if !defined(_WIN32) && !defined(__APPLE__)
 static int iface_is_wireless(const char *name) {
   char path[128];
   snprintf(path, sizeof(path), "/sys/class/net/%s/wireless", name);
@@ -2116,7 +2124,9 @@ static int iface_is_wireless(const char *name) {
 #endif
 
 // Best-effort human label for an interface. Falls back to the raw name
-// wrapped in "Local IP (...)" for anything unrecognized.
+// wrapped in "Local IP (...)" for anything unrecognized. Used on both Linux
+// and macOS (the Wi-Fi probe below is Linux-only, hence the inner guard).
+#if !defined(_WIN32)
 static void iface_label(const char *name, int is_default, char *out, int outlen) {
   const char *kind = NULL;
 
@@ -2149,7 +2159,9 @@ static void iface_label(const char *name, int is_default, char *out, int outlen)
   else
     snprintf(out, outlen, "Local IP (%s)", name);
 }
+#endif
 
+#if !defined(_WIN32)
 static int get_default_route_iface(char *out, int outlen) {
 #ifdef __APPLE__
   FILE *fp = popen("route -n get default 2>/dev/null", "r");
@@ -2202,6 +2214,7 @@ static int get_default_route_iface(char *out, int outlen) {
   return found;
 #endif
 }
+#endif
 
 static void gather_ip(void) {
 #ifdef _WIN32
@@ -2327,6 +2340,9 @@ static void gather_locale(void) {
 #endif
 }
 
+// Desktop-environment settings (gtkrc, qtct, kdeglobals) only exist on
+// POSIX desktops. Windows reads the equivalent from the Registry instead.
+#if !defined(_WIN32)
 static int read_ini_key(const char *path, const char *section, const char *key,
                         char *out, int maxlen) {
   FILE *fp = fopen(path, "r");
@@ -2498,6 +2514,7 @@ static void append_gtk_pair(char *dst, size_t dstsz, const char *gtk2,
   append_tagged(dst, dstsz, gtk2, "GTK2");
   append_tagged(dst, dstsz, gtk3, "GTK3");
 }
+#endif
 
 static void gather_theme(void) {
 #ifdef _WIN32
