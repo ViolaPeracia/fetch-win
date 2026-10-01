@@ -24,7 +24,9 @@ set(FETCH_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
 if(FETCH_ARCH MATCHES "^(AMD64|amd64|x86_64)$")
   set(FETCH_ARCH "x86_64")
 endif()
-set(FETCH_CODENAME "Overclocked ASCII")
+# Suffix marks this as the native Windows port rather than upstream fetch.
+# VERSION stays numeric because CMake's project(VERSION) rejects suffixes.
+set(FETCH_CODENAME "Overclocked ASCII (win)")
 
 # Sensible warning flags across compilers (no aggressive -Werror)
 function(fetch_apply_warnings target_name)

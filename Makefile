@@ -28,7 +28,8 @@ CFLAGS ?= -O2
 PREFIX ?= /usr/local
 LDFLAGS ?=
 LDLIBS = -lm
-CODENAME ?= Overclocked ASCII
+# Suffix marks this as the native Windows port rather than upstream fetch.
+CODENAME ?= Overclocked ASCII (win)
 
 UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
 UNAME_M := $(shell uname -m 2>/dev/null || echo x86_64)

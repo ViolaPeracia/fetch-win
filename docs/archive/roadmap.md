@@ -1,5 +1,11 @@
 # Native Windows Port Roadmap & Technical Specification (v2.1)
 
+> **ARCHIVED — all 8 phases are complete.**
+> This document is kept for historical reference and design rationale only.
+> It is no longer maintained and does not describe the current roadmap.
+> For the current feature set see `README.md` and `docs/configuration.md`.
+> For ideas that are still open, see the open issues on the tracker.
+
 This document formalizes the target architecture, platform abstraction, terminal lifecycle, system-information semantics, build strategy, and phased implementation roadmap for porting `fetch` to Windows as a native CLI application.
 
 ---

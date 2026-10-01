@@ -11,6 +11,20 @@ dependencies.
 
 Based on [gentoo.c](https://github.com/areofyl/gentoo.c).
 
+## This is the native Windows fork
+
+A Windows-native port of [areofyl/fetch](https://github.com/areofyl/fetch).
+The upstream project is Linux/macOS only; this fork adds a Win32 platform
+backend (Console API, Registry, DXGI, IP Helper) so `fetch.exe` builds and
+runs natively with no WSL, Cygwin, or MSYS layer.
+
+Version numbers are tracked separately from upstream, so a version here does
+not correspond to the same upstream release. The upstream history is kept
+intact as the merge base.
+
+Design history and the completed port plan are in
+[`docs/archive/roadmap.md`](docs/archive/roadmap.md).
+
 ---
 
 ## Recommended Windows Usage Flow
