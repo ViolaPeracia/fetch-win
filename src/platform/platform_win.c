@@ -1269,7 +1269,11 @@ int platform_run_command(const char *cmd, char *out, size_t outsz, unsigned int 
 
   HANDLE hNull = CreateFileW(L"NUL", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0, NULL);
 
-  STARTUPINFOW si = {sizeof(si)};
+  // Zero the whole struct, then set only the fields we rely on. Win32 reads
+  // several members, so a partial initializer would leave them indeterminate.
+  STARTUPINFOW si;
+  memset(&si, 0, sizeof(si));
+  si.cb = sizeof(si);
   si.dwFlags = STARTF_USESTDHANDLES;
   si.hStdOutput = hWritePipe;
   si.hStdError = (hNull != INVALID_HANDLE_VALUE) ? hNull : hWritePipe;
@@ -1588,7 +1592,9 @@ static void detect_shell_and_terminal(char *shell_out, size_t shell_sz, char *te
   DWORD pid = GetCurrentProcessId();
   HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
   if (hSnap != INVALID_HANDLE_VALUE) {
-    PROCESSENTRY32W pe = { sizeof(pe) };
+    PROCESSENTRY32W pe;
+    memset(&pe, 0, sizeof(pe));
+    pe.dwSize = sizeof(pe);
     DWORD cur_pid = pid;
 
     for (int depth = 0; depth < 8; depth++) {
@@ -1713,11 +1719,14 @@ void platform_gather_display(platform_emit_info_cb emit_cb) {
 
   g_sys_cache.display_count = 0;
 
-  DISPLAY_DEVICEW dd = { sizeof(dd) };
+  DISPLAY_DEVICEW dd;
+  memset(&dd, 0, sizeof(dd));
+  dd.cb = sizeof(dd);
   DWORD devNum = 0;
   while (EnumDisplayDevicesW(NULL, devNum, &dd, 0) && g_sys_cache.display_count < MAX_CACHED_ITEMS) {
     if (dd.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) {
-      DEVMODEW dm = { sizeof(dm) };
+      DEVMODEW dm;
+      memset(&dm, 0, sizeof(dm));
       dm.dmSize = sizeof(dm);
       if (EnumDisplaySettingsExW(dd.DeviceName, ENUM_CURRENT_SETTINGS, &dm, 0)) {
         char dev_string[128] = {0};
@@ -1772,7 +1781,9 @@ void platform_gather_wm(char *out, size_t outsz) {
 
   HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
   if (hSnap != INVALID_HANDLE_VALUE) {
-    PROCESSENTRY32W pe = { sizeof(pe) };
+    PROCESSENTRY32W pe;
+    memset(&pe, 0, sizeof(pe));
+    pe.dwSize = sizeof(pe);
     if (Process32FirstW(hSnap, &pe)) {
       do {
         if (_wcsicmp(pe.szExeFile, L"glazewm.exe") == 0) {
@@ -1842,7 +1853,9 @@ void platform_gather_font(char *out, size_t outsz) {
   s_test_font_query_count++;
 #endif
 
-  CONSOLE_FONT_INFOEX cfi = { sizeof(cfi) };
+  CONSOLE_FONT_INFOEX cfi;
+  memset(&cfi, 0, sizeof(cfi));
+  cfi.cbSize = sizeof(cfi);
   HANDLE hOut = g_win_console.hOut;
   if (hOut == NULL || hOut == INVALID_HANDLE_VALUE) {
     hOut = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -1856,7 +1869,7 @@ void platform_gather_font(char *out, size_t outsz) {
     trim_and_normalize_spaces(face);
     if (face[0] != '\0') {
       if (cfi.dwFontSize.Y > 0) {
-        snprintf(g_sys_cache.font, sizeof(g_sys_cache.font), "%s (%ldpt)", face, cfi.dwFontSize.Y);
+        snprintf(g_sys_cache.font, sizeof(g_sys_cache.font), "%s (%hdpt)", face, cfi.dwFontSize.Y);
       } else {
         snprintf(g_sys_cache.font, sizeof(g_sys_cache.font), "%s", face);
       }
@@ -2058,8 +2071,8 @@ void platform_gather_gpu(platform_emit_info_cb emit_cb) {
           }
 
           gpu_cand_t *c = &cands[num_cands++];
-          strncpy(c->name, name, sizeof(c->name) - 1);
-          c->name[sizeof(c->name) - 1] = '\0';
+          // snprintf always terminates, unlike strncpy on a full-length source.
+          snprintf(c->name, sizeof(c->name), "%s", name);
           c->type = type;
           c->has_display = has_output;
           c->is_discrete = is_discrete;
@@ -2087,10 +2100,12 @@ void platform_gather_gpu(platform_emit_info_cb emit_cb) {
     win_info_item_t *item = &g_sys_cache.gpus[g_sys_cache.gpu_count++];
     strncpy(item->label, "GPU", sizeof(item->label) - 1);
     item->label[sizeof(item->label) - 1] = '\0';
+    // Explicit precision keeps the result provably within val[] regardless of
+    // how long an adapter reports its name.
     if (cands[k].type) {
-      snprintf(item->val, sizeof(item->val), "%s [%s]", cands[k].name, cands[k].type);
+      snprintf(item->val, sizeof(item->val), "%.127s [%.32s]", cands[k].name, cands[k].type);
     } else {
-      snprintf(item->val, sizeof(item->val), "%s", cands[k].name);
+      snprintf(item->val, sizeof(item->val), "%.127s", cands[k].name);
     }
     emit_cb(item->label, "%s", item->val);
   }
@@ -2119,7 +2134,9 @@ void platform_gather_gpu(platform_emit_info_cb emit_cb) {
 void platform_gather_memory(char *out, size_t outsz) {
   if (!out || outsz == 0) return;
 
-  MEMORYSTATUSEX ms = { sizeof(ms) };
+  MEMORYSTATUSEX ms;
+  memset(&ms, 0, sizeof(ms));
+  ms.dwLength = sizeof(ms);
   if (!GlobalMemoryStatusEx(&ms) || ms.ullTotalPhys == 0) {
     out[0] = '\0';
     return;
@@ -2137,7 +2154,9 @@ void platform_gather_memory(char *out, size_t outsz) {
 void platform_gather_swap(char *out, size_t outsz) {
   if (!out || outsz == 0) return;
 
-  MEMORYSTATUSEX ms = { sizeof(ms) };
+  MEMORYSTATUSEX ms;
+  memset(&ms, 0, sizeof(ms));
+  ms.dwLength = sizeof(ms);
   if (!GlobalMemoryStatusEx(&ms) || ms.ullTotalPageFile == 0) {
     out[0] = '\0';
     return;
