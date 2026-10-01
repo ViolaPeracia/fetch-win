@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows (MinGW-w64)
+            os: windows-latest
+          - name: Linux (POSIX)
+            os: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Linux needs the POSIX headers used by fetch.c and platform_posix.c.
+      - name: Install Linux build deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      # windows-latest ships both MSVC and MinGW; pick the generator explicitly
+      # so the build does not depend on the runner's default.
+      - name: Configure (CMake)
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          ${{ runner.os == 'Windows' && '-G "MinGW Makefiles"' || '' }}
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test (CTest)
+        run: ctest --test-dir build --output-on-failure --build-config Release
+
+      - name: Report version
+        run: ./build/fetch${{ runner.os == 'Windows' && '.exe' || '' }} --version
+
+  warnings:
+    name: compiler warnings (report only)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Informational. The remaining warnings are pre-existing and sit in
+      # POSIX-only paths and test files, so this is not a gate: adding one
+      # would require fixing those first. Watch the count to catch regressions.
+      - name: Build with -Wall -Wextra
+        run: |
+          $v = (Get-Content VERSION).Trim()
+          gcc -O2 -Wall -Wextra -I. -I tests/include `
+            "-DFETCH_VERSION=`"$v`"" `
+            '-DFETCH_CODENAME="Overclocked ASCII (win)"' `
+            '-DFETCH_ARCH="x86_64"' `
+            '-DFETCH_OS="Windows_NT"' `
+            fetch.c src/core/common.c src/renderer/renderer.c src/config/config.c `
+            src/logo/logo.c src/platform/platform_win.c `
+            -o fetch.exe -lm -lws2_32 -ldxgi -liphlpapi -lversion 2> warn.log
+          if ($LASTEXITCODE -ne 0) { Get-Content warn.log; exit 1 }
+          Get-Content warn.log
+
+      # The preprocessor guards added for POSIX-only helpers are invisible to a
+      # Windows-only compile, so a stray #endif would not fail the build above.
+      # This check balances the directives for every supported target instead.
+      - name: Preprocessor balance (Windows, Linux, macOS)
+        shell: pwsh
+        run: |
+          $files = @('fetch.c','src/logo/logo.c','src/config/config.c',
+                     'src/core/common.c','src/renderer/renderer.c')
+          $v = (Get-Content VERSION).Trim()
+          $defs = @(
+            @{ label='windows'; args=@('-D_WIN32','-DFETCH_OS="\"Windows_NT\""') },
+            @{ label='linux';   args=@('-U_WIN32','-DFETCH_OS="\"Linux\""') },
+            @{ label='macos';   args=@('-U_WIN32','-D__APPLE__','-DFETCH_OS="\"Darwin\""') }
+          )
+          $failed = $false
+          foreach ($f in $files) {
+            foreach ($d in $defs) {
+              $err = gcc -E -I. -I tests/include `
+                "-DFETCH_VERSION=`"$v`"" '-DFETCH_CODENAME="OC"' '-DFETCH_ARCH="x86_64"' `
+                @($d.args) $f 2>&1 >$null |
+                Select-String -Pattern 'unterminated #if|#endif without|#else after #else|#elif after #else|extra tokens at end'
+              if ($err) {
+                Write-Host "  $($d.label) $f FAIL"
+                $err | ForEach-Object { Write-Host "      $_" }
+                $failed = $true
+              }
+            }
+          }
+          if ($failed) { exit 1 }
+          Write-Host "  all platforms: directive structure OK"

@@ -239,9 +239,24 @@ static void test_interruption_state(void) {
     platform_set_interrupted_for_test(0);
     TEST_ASSERT(platform_is_interrupted() == 0, "platform_is_interrupted returns 0 after reset");
 
-    /* Real Windows native CTRL_C_EVENT verification via child process in new console */
+    /* Real Windows native CTRL_C_EVENT verification via child process in new console.
+     *
+     * Console control events are only delivered to a process that is attached to
+     * a real console. In headless environments (CI runners, redirected stdio)
+     * GetConsoleMode fails and GetConsoleWindow returns NULL, and the event is
+     * silently dropped no matter how the handler is written. Skip rather than
+     * report a false failure there; the platform-side handler is still covered
+     * by the simulated flag assertions above. */
+    HANDLE hStd = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD std_mode = 0;
+    int has_real_console = (hStd != NULL && hStd != INVALID_HANDLE_VALUE &&
+                            GetConsoleMode(hStd, &std_mode) &&
+                            GetConsoleWindow() != NULL);
+
     char exe_path[MAX_PATH];
-    if (GetModuleFileNameA(NULL, exe_path, MAX_PATH) > 0) {
+    if (!has_real_console) {
+        printf("  [SKIP] CTRL_C_EVENT delivery (no console attached; headless)\n");
+    } else if (GetModuleFileNameA(NULL, exe_path, MAX_PATH) > 0) {
         char cmd[MAX_PATH + 64];
         snprintf(cmd, sizeof(cmd), "\"%s\" --test-ctrl-c-child", exe_path);
 
