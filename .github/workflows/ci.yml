@@ -43,6 +43,18 @@ jobs:
       - name: Test (CTest)
         run: ctest --test-dir build --output-on-failure --build-config Release
 
+      # Temporary diagnostic: capture a symbolized trace for the Linux crash.
+      # TODO remove once cli_frames/cli_no_info_frames stop segfaulting.
+      - name: Diagnose (ASan/UBSan)
+        if: runner.os == 'Linux' && failure()
+        run: |
+          cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+          cmake --build build-asan --target fetch
+          export ASAN_OPTIONS=abort_on_error=0:print_stacktrace=1:detect_leaks=0
+          export UBSAN_OPTIONS=print_stacktrace=1
+          ./build-asan/fetch --frames 5 2>&1 | head -60 || true
+
       - name: Report version
         run: ./build/fetch${{ runner.os == 'Windows' && '.exe' || '' }} --version
 
