@@ -3,6 +3,27 @@
 Build configuration and debugging notes. Framework-agnostic: nothing here is
 specific to a particular editor, assistant, or agent.
 
+## Never merge upstream; port by hand
+
+This fork is a descendant of `areofyl/fetch`, kept as a merge base so the
+lineage stays visible. Upstream is **read-only**: its push URL is set to
+`DISABLED`, and every commit goes to `origin` (`ViolaPeracia/fetch-win`).
+
+```bash
+git remote set-url --push upstream DISABLED
+```
+
+Do not run `git merge upstream/main`. The fork split the monolithic `fetch.c`
+into `src/{core,config,logo,platform,renderer}`, which upstream does not have.
+Merging would reintroduce thousands of lines of single-file code and undo the
+refactor. Pick upstream changes over manually, one at a time, and verify each
+against the Windows, Linux, and macOS builds.
+
+A `git log main..upstream/main` listing commits here does not mean they are
+missing. It shows commits that were ported by hand rather than merged, so
+their SHAs never entered this history. Check the actual content before assuming
+work is outstanding.
+
 ## Strict C11 hides POSIX declarations
 
 `CMakeLists.txt` sets `CMAKE_C_EXTENSIONS OFF`, which compiles as `-std=c11`.

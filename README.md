@@ -22,6 +22,25 @@ Version numbers are tracked separately from upstream, so a version here does
 not correspond to the same upstream release. The upstream history is kept
 intact as the merge base.
 
+### Working with the two remotes
+
+| Remote | Points at | Fetch | Push |
+|---|---|---|---|
+| `origin` | this fork, `ViolaPeracia/fetch-win` | yes | **yes, this is the only writable remote** |
+| `upstream` | the original, `areofyl/fetch` | yes | **disabled** |
+
+All commits go to `origin`. `upstream` is read-only and its push URL is set to
+`DISABLED` so a mistyped `git push` cannot write to someone else's repository:
+
+```bash
+git remote set-url --push upstream DISABLED
+```
+
+Upstream is read for comparison only, never merged. The fork split `fetch.c`
+into `src/` modules that upstream does not have, so `git merge upstream/main`
+would reintroduce the monolithic file and undo the refactor. Port changes by
+hand instead, and commit the result here.
+
 Design history and the completed port plan are in
 [`docs/archive/roadmap.md`](docs/archive/roadmap.md).
 
