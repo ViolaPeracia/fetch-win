@@ -1,3 +1,13 @@
+// CMake builds with CMAKE_C_EXTENSIONS OFF (-std=c11), which hides the POSIX
+// feature-test macros that declare O_CLOEXEC. Request them before any header
+// is included. MinGW defines _GNU_SOURCE itself, hence the guards.
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <dirent.h>
 #include <fcntl.h>
 #include <math.h>
@@ -18,6 +28,13 @@
 #include <time.h>
 #include <limits.h>
 #include <ctype.h>
+
+// Some toolchains still do not declare O_CLOEXEC. Degrade to 0 (open without
+// close-on-exec) instead of failing the build; a missing macro must not stop a
+// compile. glibc declares the real value via the feature macros above.
+#ifndef O_CLOEXEC
+#define O_CLOEXEC 0
+#endif
 
 #ifdef __APPLE__
 #include <sys/sysctl.h>

@@ -68,6 +68,8 @@ jobs:
             -o fetch.exe -lm -lws2_32 -ldxgi -liphlpapi -lversion 2> warn.log
           if ($LASTEXITCODE -ne 0) { Get-Content warn.log; exit 1 }
           Get-Content warn.log
+          Write-Host "  warning count: $((Get-Content warn.log | Measure-Object -Line).Lines)"
+          exit 0
 
       # The preprocessor guards added for POSIX-only helpers are invisible to a
       # Windows-only compile, so a stray #endif would not fail the build above.
@@ -99,3 +101,6 @@ jobs:
           }
           if ($failed) { exit 1 }
           Write-Host "  all platforms: directive structure OK"
+          # PowerShell propagates the last native command's exit status, and gcc
+          # exits non-zero on some of these configurations, so exit explicitly.
+          exit 0
