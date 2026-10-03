@@ -284,7 +284,17 @@ static void test_config_baseline(void) {
     char orig_home[256] = "";
     char *cur_home = getenv("HOME");
     if (cur_home) strncpy(orig_home, cur_home, sizeof(orig_home)-1);
-    
+
+    // On POSIX the lookup prefers XDG_CONFIG_HOME over HOME, so pinning HOME
+    // alone would leave the test reading whatever the environment exports (CI
+    // images commonly do) and fail to find the fixture.
+    #ifndef _WIN32
+    char orig_xdg[256] = "";
+    char *cur_xdg = getenv("XDG_CONFIG_HOME");
+    if (cur_xdg) strncpy(orig_xdg, cur_xdg, sizeof(orig_xdg)-1);
+    unsetenv("XDG_CONFIG_HOME");
+    #endif
+
     #ifdef _WIN32
     _putenv("HOME=.");
     #else
@@ -325,6 +335,9 @@ static void test_config_baseline(void) {
     TEST_ASSERT(config_h_alignment == H_ALIGN_RIGHT, "h_alignment=right parsed");
 
     // Clean up
+    #ifndef _WIN32
+    if (orig_xdg[0]) setenv("XDG_CONFIG_HOME", orig_xdg, 1);
+    #endif
     if (orig_home[0]) {
         #ifdef _WIN32
         char env_buf[300];
@@ -438,7 +451,17 @@ static void test_custom_logo_baseline(void) {
     char orig_home[256] = "";
     char *cur_home = getenv("HOME");
     if (cur_home) strncpy(orig_home, cur_home, sizeof(orig_home)-1);
-    
+
+    // On POSIX the lookup prefers XDG_CONFIG_HOME over HOME, so pinning HOME
+    // alone would leave the test reading whatever the environment exports (CI
+    // images commonly do) and fail to find the fixture.
+    #ifndef _WIN32
+    char orig_xdg[256] = "";
+    char *cur_xdg = getenv("XDG_CONFIG_HOME");
+    if (cur_xdg) strncpy(orig_xdg, cur_xdg, sizeof(orig_xdg)-1);
+    unsetenv("XDG_CONFIG_HOME");
+    #endif
+
     #ifdef _WIN32
     _putenv("HOME=.");
     #else
@@ -453,6 +476,9 @@ static void test_custom_logo_baseline(void) {
     TEST_ASSERT(logo_rows == 6, "Logo loads exactly 6 rows of art");
 
     // Clean up
+    #ifndef _WIN32
+    if (orig_xdg[0]) setenv("XDG_CONFIG_HOME", orig_xdg, 1);
+    #endif
     if (orig_home[0]) {
         #ifdef _WIN32
         char env_buf[300];
