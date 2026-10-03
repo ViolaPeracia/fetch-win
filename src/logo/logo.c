@@ -1,3 +1,14 @@
+// Under strict C11 (-std=c11) popen/pclose have no visible prototype, which
+// gives them an implicit int return: the FILE* from popen is then truncated to
+// 32 bits and the next fgets dereferences a garbage pointer. Request the POSIX
+// declarations before including anything.
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "src/logo/logo.h"
 #include "src/core/common.h"
 

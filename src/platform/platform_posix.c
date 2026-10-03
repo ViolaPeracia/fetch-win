@@ -1,3 +1,13 @@
+// Strict C11 (-std=c11) hides the POSIX declarations of usleep and friends,
+// which leaves them implicitly declared as returning int. Request them before
+// including anything.
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "src/platform/platform.h"
 
 #include <stdio.h>

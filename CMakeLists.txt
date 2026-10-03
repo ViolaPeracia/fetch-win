@@ -69,6 +69,15 @@ if(NOT MSVC)
   endif()
 endif()
 
+# CMAKE_C_EXTENSIONS OFF means -std=c11, which hides the POSIX declarations of
+# popen/usleep. Without this, those calls get an implicit int declaration: the
+# 64-bit FILE* returned by popen is truncated to 32 bits and fgets then
+# dereferences a garbage pointer. Requested on the command line so it applies to
+# every target before any header is included.
+if(NOT WIN32)
+  add_compile_definitions(_GNU_SOURCE)
+endif()
+
 # Platform backend selection and system library dependencies
 if(WIN32)
   set(PLATFORM_SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/platform_win.c")
